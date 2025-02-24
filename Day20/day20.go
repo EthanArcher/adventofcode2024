@@ -11,7 +11,7 @@ import (
 
 type Item struct {
 	position	position
-	route []position
+	route 		[]position
 	cost 		int 
 	index 		int
 }
