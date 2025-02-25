@@ -93,46 +93,23 @@ var dirPad map[string]position = map[string]position{
 }
 
 var dPadCostMap map[string]map[string]int = map[string]map[string]int{
-	"A": {
-		"^": 1,
-		">": 1,
-		"v": 2,
-		"<": 3,
-	},
-	"^": {
-		"A": 1,
-		"v": 1,
-		"<": 2,
-		">": 2,
-	},
-	"v": {
-		"^": 1,
-		"<": 1,
-		">": 1,
-		"A": 2,
-	},
-	"<": {
-		"v": 1,
-		"^": 2,
-		">": 2,
-		"A": 3,
-	},
-	">": {
-		"v": 1,
-		"A": 1,
-		"^": 2,
-		"<": 2,
-	},
+	"A": {"^": 1, ">": 1, "v": 2, "<": 3},
+	"^": {"A": 1, "v": 1, "<": 2, ">": 2},
+	"v": {"^": 1, "<": 1, ">": 1, "A": 2},
+	"<": {"v": 1, "^": 2, ">": 2, "A": 3},
+	">": {"v": 1, "A": 1, "^": 2, "<": 2},
 }
 
 var subSequenceCache = make(map[string][]string)
+var potentialRouteCache = make(map[string][][]string)
 var sequenceLengthCache = make(map[string]int)
+var cheapestRouteCache = make(map[string]int)
 
-var numberOfDpadRobots int = 2
+var numberOfDpadRobots int = 25
 
 func main() {
 
-	commands := readCommandsFromFile("input-example.txt")
+	commands := readCommandsFromFile("input.txt")
 	re := regexp.MustCompile(`\d+`)
 
 	acc := 0
@@ -171,9 +148,9 @@ func shortestRouteOnNumberPad(start position, end position, numberOfRobots int) 
 	pq := make(PriorityQueue, 0)
 	heap.Init(&pq)
 	heap.Push(&pq, &Item{
-		position: start, 
-		route: []string{}, 
-		cost: 0,
+		position: start,
+		route:    []string{},
+		cost:     0,
 	})
 
 	visited := make(map[position]bool)
@@ -205,20 +182,58 @@ func shortestRouteOnNumberPad(start position, end position, numberOfRobots int) 
 			if isValidPosition(numPad, np) && !visited[np] {
 				newRoute := append(item.route, pad)
 				newRouteWithPressA := append(newRoute, "A")
-				routeCost := enterSequenceOnDPad(newRouteWithPressA, numberOfRobots)
+				routeCost := findCheapestEntryCost(newRouteWithPressA, numberOfRobots)
 
-			   	newItem := Item{
+				newItem := Item{
 					position: np,
-					route: newRoute,
-					cost: routeCost,
+					route:    newRoute,
+					cost:     routeCost,
 				}
 				heap.Push(&pq, &newItem)
 			}
 		}
 	}
-	fmt.Println("shortest route from", start, "to", end, "is", shortestRoute[end], "length", shortestSequence[end])
 
 	return shortestSequence[end]
+}
+
+func findCheapestEntryCost(sequence []string, numberOfRobots int) int {
+	sq := strings.Join(sequence, "") + strconv.Itoa(numberOfRobots)
+
+	//Check if the pattern has already been computed
+	if result, exists := cheapestRouteCache[sq]; exists {
+		return result
+	}
+
+	// if you are at the final robot, return the cost of entering the sequence
+	// else for each of the possible ways to enter the sequence
+	// find the cheapest option
+
+	if numberOfRobots == 1 {
+		v := enterSequenceOnDPad(sequence, 1)
+		cheapestRouteCache[sq] = v
+		return v
+	} else {
+		pots := [][]string{}
+		shortestTotal := 0
+		for i := 0; i < len(sequence); i++ {
+			if i == 0 {
+				pots = potentialShortestRoutesForSequence(dirPad["A"], dirPad[sequence[i]])
+			} else {
+				pots = potentialShortestRoutesForSequence(dirPad[sequence[i-1]], dirPad[sequence[i]])
+			}
+			t := 9999999999999999
+			for _, p := range pots {
+				c := findCheapestEntryCost(p, numberOfRobots-1)
+				if c < t {
+					t = c
+				}
+			}
+			shortestTotal += t
+		}
+		cheapestRouteCache[sq] = shortestTotal
+		return shortestTotal
+	}
 
 }
 
@@ -234,22 +249,22 @@ func enterSequenceOnDPad(sequence []string, numberOfRobots int) int {
 	subsequences := [][]string{}
 	subsequence := []string{}
 
-	for _,s := range sequence {
+	for _, s := range sequence {
 		subsequence = append(subsequence, s)
 		if s == "A" {
 			subsequences = append(subsequences, subsequence)
 			subsequence = []string{}
-		} 
+		}
 	}
 	subsequences = append(subsequences, subsequence)
 
 	sequenceLength := 0
-	for _,ss := range subsequences {
+	for _, ss := range subsequences {
 		commandsToEnterSubsequence := enterSubSequenceOnDPad(ss)
 		if numberOfRobots == 1 {
 			sequenceLength += len(commandsToEnterSubsequence)
 		} else {
-			sequenceLength += enterSequenceOnDPad(commandsToEnterSubsequence, numberOfRobots - 1)
+			sequenceLength += enterSequenceOnDPad(commandsToEnterSubsequence, numberOfRobots-1)
 		}
 	}
 
@@ -335,6 +350,73 @@ func enterDirectionOnDPad(start position, end position) []string {
 	}
 
 	return append(shortestRoute[end], "A")
+}
+
+
+func potentialShortestRoutesForSequence(start, end position) [][]string {
+
+	if start == end {
+		return [][]string{{"A"}}
+	}
+
+	sq := fmt.Sprintf("(%v,%v),(%v,%v)", start.row, start.column, end.row, end.column)
+
+	// Check if the pattern has already been computed
+	if result, exists := potentialRouteCache[sq]; exists {
+		return result
+	}
+
+	pq := make(PriorityQueue, 0)
+	heap.Init(&pq)
+	heap.Push(&pq, &Item{position: start, route: []string{}, cost: 0})
+
+	visited := make(map[position]bool)
+	shortestRoutes := make(map[position][][]string) // Store multiple routes
+
+	for len(pq) > 0 {
+		item := heap.Pop(&pq).(*Item)
+		pos := item.position
+
+		if visited[pos] {
+			if len(item.route) > len(shortestRoutes[pos]) {
+				continue
+			}
+		} else {
+			visited[pos] = true
+		}
+
+		if pos.row == end.row && pos.column == end.column {
+			continue
+		}
+
+		for d, pad := range directions {
+			np := position{row: pos.row + d.row, column: pos.column + d.column}
+			if isValidPosition(dirPad, np) && !visited[np] {
+				newCost := item.cost + 1
+				newRoute := append(item.route, pad)
+
+				if existingRoutes, exists := shortestRoutes[np]; exists {
+					if newCost < len(existingRoutes[0]) { // New shorter route
+						shortestRoutes[np] = [][]string{newRoute}
+					} else if newCost == len(existingRoutes[0]) { // Equal cost route
+						shortestRoutes[np] = append(shortestRoutes[np], newRoute)
+					} // Else: new route is longer, ignore it
+				} else {
+					shortestRoutes[np] = [][]string{newRoute}
+				}
+				heap.Push(&pq, &Item{position: np, route: newRoute, cost: newCost})
+			}
+		}
+	}
+
+	// Append "A" to all shortest routes at the end
+	for i := range shortestRoutes[end] {
+		shortestRoutes[end][i] = append(shortestRoutes[end][i], "A")
+	}
+
+	potentialRouteCache[sq] = shortestRoutes[end]
+
+	return shortestRoutes[end]
 }
 
 func isValidPosition(m map[string]position, target position) bool {

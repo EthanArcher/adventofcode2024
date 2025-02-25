@@ -8,48 +8,9 @@ import (
 	"testing"
 )
 
-// func TestMoveOnNumPad_robot1(t *testing.T) {
-// 	tests := []struct {
-// 		start string
-// 		end   string
-// 		move  []string
-// 	}{
-// 		// {start: "7", end: "9", move: []string{">", ">", "A"}},
-// 		// {start: "7", end: "5", move: []string{"v", ">", "A"}},
-// 		// {start: "7", end: "A", move: []string{"v", "v", "v", ">", ">", "A"}},
-// 		// {start: "A", end: "7", move: []string{"^", "^", "^", "<", "<", "A"}},
-// 		// {start: "A", end: "0", move: []string{"<", "A"}},
-// 		// {start: "A", end: "3", move: []string{"^", "A"}},
-// 		{start: "3", end: "7", move: []string{"<", "<", "^", "^", "A"}},
-// 		// {start: "7", end: "9", move: []string{">", ">", "A"}},
-// 		// {start: "9", end: "A", move: []string{"v", "v", "v", "A"}},
-// 	}
-
-// 	for _, tt := range tests {
-
-// 		commands := shortestRouteOnNumberPad(numPad[tt.start], numPad[tt.end], 2)
-// 		fmt.Println("Moving from", tt.start, "to", tt.end, "is", commands)
-
-// 		if commands != len(tt.move) {
-// 			t.Errorf("moveOnNumberPad(%v, %v) = %v; want %v", tt.start, tt.end, commands, tt.move)
-// 		}
-// 	}
-
-// 	for _, tt := range tests {
-// 		move := shortestRouteOnNumberPad(numPad[tt.start], numPad[tt.end])
-// 		fmt.Println("Moving from", tt.start, "to", tt.end, "is", move)
-// 		fmt.Println("Expected:", tt.move)
-// 		fmt.Println("Actual:  ", move)
-	
-// 		if len(move) != len(tt.move) || !equalSlices(move, tt.move) {
-// 			t.Errorf("moveOnNumberPad(%v, %v) = %v; want %v", tt.start, tt.end, move, tt.move)
-// 		}
-// 	}
-// }
-
 func TestValidPosition(t *testing.T) {
 	tests := []struct {
-		pos position
+		pos      position
 		expected bool
 	}{
 		{pos: position{row: 0, column: 0}},
@@ -89,7 +50,7 @@ func TestEnterDirectionsOnDPad(t *testing.T) {
 func TestEnterSubSequenceOnDPad(t *testing.T) {
 	tests := []struct {
 		subSequence []string
-		move     []string
+		move        []string
 	}{
 		{subSequence: []string{"<", "A"}, move: []string{"v", "<", "<", "A", ">", ">", "^", "A"}},
 		{subSequence: []string{"^", "A"}, move: []string{"<", "A", ">", "A"}},
@@ -107,12 +68,12 @@ func TestEnterSubSequenceOnDPad(t *testing.T) {
 		fmt.Println("Input:", tt.subSequence, "Result:", move)
 		// fmt.Println("Expected:", tt.move)
 		// fmt.Println("Actual:  ", move)
-	
+
 		if len(move) != len(tt.move) || !equalSlices(move, tt.move) {
 			t.Errorf("enterSubSequenceOnDPad(%v) = %v; want %v", tt.subSequence, move, tt.move)
 		}
 	}
-	
+
 }
 
 func TestEnterSequenceOnDPad(t *testing.T) {
@@ -159,10 +120,58 @@ func TestEnterCode(t *testing.T) {
 
 		sequenceLength := enterCodeOnNumberPad(tt.sequence, 2)
 
-		fmt.Println("Enter sequence", tt.sequence, "length:", sequenceLength, "cost:", sequenceLength * value)
+		fmt.Println("Enter sequence", tt.sequence, "length:", sequenceLength, "cost:", sequenceLength*value)
 
 		if sequenceLength != tt.length {
 			t.Errorf("enterCodeOnNumberPad(%v) = %v; want %v", tt.sequence, sequenceLength, tt.length)
+		}
+	}
+}
+
+func TestPotentialShortestRoutes(t *testing.T) {
+	tests := []struct {
+		start           position
+		end             position
+		potentialRoutes [][]string
+	}{
+		{start: dirPad["A"], end: dirPad["^"], potentialRoutes: [][]string{{"<", "A"}}},
+		{start: dirPad["A"], end: dirPad["v"], potentialRoutes: [][]string{{"<", "v", "A"}, {"v", "<", "A"}}},
+		{start: dirPad["A"], end: dirPad["<"], potentialRoutes: [][]string{{"v", "<", "<", "A"}, {"<", "v", "<", "A"}}},
+		{start: dirPad["v"], end: dirPad["A"], potentialRoutes: [][]string{{"^", ">", "A"}, {">", "^", "A"}}},
+	}
+
+	for _, tt := range tests {
+
+		pr := potentialShortestRoutesForSequence(tt.start, tt.end)
+
+		fmt.Println("potentialShortestRoutesForSequence", tt.start, "->", tt.end, "=", pr)
+
+		if len(pr) != len(tt.potentialRoutes) || len(pr[0]) != len(tt.potentialRoutes[0]) {
+			t.Errorf("potentialShortestRoutesForSequence(%v, %v) = %v; want %v", tt.start, tt.end, pr, tt.potentialRoutes)
+		}
+	}
+}
+
+func TestFindCheapestEntryCost(t *testing.T) {
+	tests := []struct {
+		sequence []string
+		robots   int
+		cost     int
+	}{
+		{sequence: []string{"<", "A"}, robots: 1, cost: 8}, // []string{"v", "<", "<", "A", ">", ">", "^", "A"}
+		{sequence: []string{"<", "A"}, robots: 2, cost: 18},
+		{sequence: []string{"<", "<", "^", "^", "A"}, robots: 1, cost: 11},
+		{sequence: []string{"<", "<", "^", "^", "A"}, robots: 2, cost: 23},
+	}
+
+	for _, tt := range tests {
+
+		cheap := findCheapestEntryCost(tt.sequence, tt.robots)
+
+		fmt.Println("findCheapestEntryCost", tt.sequence, "with robots", tt.robots, "=", cheap)
+
+		if cheap != tt.cost {
+			t.Errorf("findCheapestEntryCost(%v, %v) = %v; want %v", tt.sequence, tt.robots, cheap, tt.cost)
 		}
 	}
 }
