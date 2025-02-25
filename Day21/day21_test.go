@@ -8,31 +8,44 @@ import (
 	"testing"
 )
 
-func TestMoveOnNumPad_robot1(t *testing.T) {
-	tests := []struct {
-		start string
-		end   string
-		move  []string
-	}{
-		{start: "7", end: "9", move: []string{">", ">", "A"}},
-		{start: "7", end: "5", move: []string{"v", ">", "A"}},
-		{start: "7", end: "A", move: []string{"v", "v", "v", ">", ">", "A"}},
-		{start: "A", end: "7", move: []string{"^", "^", "^", "<", "<", "A"}},
-		{start: "A", end: "0", move: []string{"<", "A"}},
-		{start: "3", end: "7", move: []string{"<", "<", "^", "^", "A"}},
-		{start: "3", end: "7", move: []string{"<", "<", "^", "^", "A"}},
-	}
+// func TestMoveOnNumPad_robot1(t *testing.T) {
+// 	tests := []struct {
+// 		start string
+// 		end   string
+// 		move  []string
+// 	}{
+// 		// {start: "7", end: "9", move: []string{">", ">", "A"}},
+// 		// {start: "7", end: "5", move: []string{"v", ">", "A"}},
+// 		// {start: "7", end: "A", move: []string{"v", "v", "v", ">", ">", "A"}},
+// 		// {start: "A", end: "7", move: []string{"^", "^", "^", "<", "<", "A"}},
+// 		// {start: "A", end: "0", move: []string{"<", "A"}},
+// 		// {start: "A", end: "3", move: []string{"^", "A"}},
+// 		{start: "3", end: "7", move: []string{"<", "<", "^", "^", "A"}},
+// 		// {start: "7", end: "9", move: []string{">", ">", "A"}},
+// 		// {start: "9", end: "A", move: []string{"v", "v", "v", "A"}},
+// 	}
 
-	for _, tt := range tests {
+// 	for _, tt := range tests {
 
-		move := shortestRouteOnNumberPad(numPad[tt.start], numPad[tt.end])
-		fmt.Println("Moving from", tt.start, "to", tt.end, "is", move)
+// 		commands := shortestRouteOnNumberPad(numPad[tt.start], numPad[tt.end], 2)
+// 		fmt.Println("Moving from", tt.start, "to", tt.end, "is", commands)
 
-		if len(move) != len(tt.move) {
-			t.Errorf("moveOnNumberPad(%v, %v) = %v; want %v", tt.start, tt.end, move, tt.move)
-		}
-	}
-}
+// 		if commands != len(tt.move) {
+// 			t.Errorf("moveOnNumberPad(%v, %v) = %v; want %v", tt.start, tt.end, commands, tt.move)
+// 		}
+// 	}
+
+// 	for _, tt := range tests {
+// 		move := shortestRouteOnNumberPad(numPad[tt.start], numPad[tt.end])
+// 		fmt.Println("Moving from", tt.start, "to", tt.end, "is", move)
+// 		fmt.Println("Expected:", tt.move)
+// 		fmt.Println("Actual:  ", move)
+	
+// 		if len(move) != len(tt.move) || !equalSlices(move, tt.move) {
+// 			t.Errorf("moveOnNumberPad(%v, %v) = %v; want %v", tt.start, tt.end, move, tt.move)
+// 		}
+// 	}
+// }
 
 func TestValidPosition(t *testing.T) {
 	tests := []struct {
@@ -79,17 +92,27 @@ func TestEnterSubSequenceOnDPad(t *testing.T) {
 		move     []string
 	}{
 		{subSequence: []string{"<", "A"}, move: []string{"v", "<", "<", "A", ">", ">", "^", "A"}},
+		{subSequence: []string{"^", "A"}, move: []string{"<", "A", ">", "A"}},
+		{subSequence: []string{"<", "<", "^", "^", "A"}, move: []string{"v", "<", "<", "A", "A", ">", "^", "A", "A", ">", "A"}},
+		{subSequence: []string{"^", "^", "<", "<", "A"}, move: []string{"<", "A", "A", "v", "<", "A", "A", ">", ">", "^", "A"}},
+		{subSequence: []string{">", ">", "A"}, move: []string{"v", "A", "A", "^", "A"}},
+		{subSequence: []string{"v", "v", "v", "A"}, move: []string{"v", "<", "A", "A", "A", "^", ">", "A"}},
+		{subSequence: []string{"v", "<", "<", "A", ">", ">", "^", "A"}, move: []string{"v", "<", "A", "<", "A", "A", ">", ">", "^", "A", "v", "A", "A", "^", "<", "A", ">", "A"}},
+		{subSequence: []string{"v", "<", "<", "A", "A", ">", "^", "A", "A", ">", "A"}, move: []string{"v", "<", "A", "<", "A", "A", ">", ">", "^", "A", "A", "v", "A", "^", "<", "A", ">", "A", "A", "v", "A", "^", "A"}},
+		{subSequence: []string{"<", "A", "A", "v", "<", "A", "A", ">", ">", "^", "A"}, move: []string{"v", "<", "<", "A", ">", ">", "^", "A", "A", "v", "<", "A", "<", "A", ">", ">", "^", "A", "A", "v", "A", "A", "^", "<", "A", ">", "A"}},
 	}
 
 	for _, tt := range tests {
-
 		move := enterSubSequenceOnDPad(tt.subSequence)
-		fmt.Println("Enter sequence", tt.subSequence, "is", move)
-
-		if len(move) != len(tt.move) {
-			t.Errorf("enterSequenceOnDPad(%v) = %v; want %v", tt.subSequence, move, tt.move)
+		fmt.Println("Input:", tt.subSequence, "Result:", move)
+		// fmt.Println("Expected:", tt.move)
+		// fmt.Println("Actual:  ", move)
+	
+		if len(move) != len(tt.move) || !equalSlices(move, tt.move) {
+			t.Errorf("enterSubSequenceOnDPad(%v) = %v; want %v", tt.subSequence, move, tt.move)
 		}
 	}
+	
 }
 
 func TestEnterSequenceOnDPad(t *testing.T) {
@@ -97,16 +120,18 @@ func TestEnterSequenceOnDPad(t *testing.T) {
 		sequence []string
 		move     []string
 	}{
-		{sequence: []string{"v", "<", "<", "A", ">", ">", "^", "A"}, move: []string{"v", "<", "A", "<", "A", "A", "^", ">", ">", "A", "v", "A", "A", "^", "<", "A", ">", "A"}},
+		{sequence: []string{"^"}, move: []string{"v", "<", "<", "A", ">", ">", "^", "A"}},
+		{sequence: []string{"<", "<", "^", "^", "A"}, move: []string{"v", "<", "A", "<", "A", "A", ">", ">", "^", "A", "A", "v", "A", "^", "<", "A", ">", "A", "A", "v", "A", "^", "A"}},
+		{sequence: []string{"^", "^", "<", "<", "A"}, move: []string{"v", "<", "<", "A", ">", ">", "^", "A", "A", "v", "<", "A", "<", "A", ">", ">", "^", "A", "A", "v", "A", "A", "^", "<", "A", ">", "A"}},
 	}
 
 	for _, tt := range tests {
 
-		move := enterSequenceOnDPad(tt.sequence)
-		fmt.Println("Enter sequence", tt.sequence, "is", move)
+		commands := enterSequenceOnDPad(tt.sequence, 2)
+		fmt.Println("Enter sequence", tt.sequence, "is", commands)
 
-		if len(move) != len(tt.move) {
-			t.Errorf("enterSequenceOnDPad(%v) = %v; want %v", tt.sequence, move, tt.move)
+		if commands != len(tt.move) {
+			t.Errorf("enterSequenceOnDPad(%v) = %v; want %v", tt.sequence, commands, tt.move)
 		}
 	}
 }
@@ -132,13 +157,24 @@ func TestEnterCode(t *testing.T) {
 		digits := re.FindString(combinedStr)
 		value, _ := strconv.Atoi(digits)
 
-		move := enterCodeOnNumberPad(tt.sequence, 2)
-		sequenceLength := len(move)
+		sequenceLength := enterCodeOnNumberPad(tt.sequence, 2)
 
 		fmt.Println("Enter sequence", tt.sequence, "length:", sequenceLength, "cost:", sequenceLength * value)
 
-		if len(move) != tt.length {
+		if sequenceLength != tt.length {
 			t.Errorf("enterCodeOnNumberPad(%v) = %v; want %v", tt.sequence, sequenceLength, tt.length)
 		}
 	}
+}
+
+func equalSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

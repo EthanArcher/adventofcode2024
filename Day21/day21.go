@@ -15,7 +15,6 @@ type Item struct {
 	route    []string
 	cost     int
 	index    int
-	driver   []string
 }
 
 type PriorityQueue []*Item
@@ -126,13 +125,14 @@ var dPadCostMap map[string]map[string]int = map[string]map[string]int{
 	},
 }
 
-var dPadCache map[string][]string = make(map[string][]string)
+var subSequenceCache = make(map[string][]string)
+var sequenceLengthCache = make(map[string]int)
 
 var numberOfDpadRobots int = 2
 
 func main() {
 
-	commands := readCommandsFromFile("input.txt")
+	commands := readCommandsFromFile("input-example.txt")
 	re := regexp.MustCompile(`\d+`)
 
 	acc := 0
@@ -141,135 +141,53 @@ func main() {
 		combinedStr := strings.Join(c, "")
 		digits := re.FindString(combinedStr)
 		value, _ := strconv.Atoi(digits)
-		commands := enterCodeOnNumberPad(c, numberOfDpadRobots)
-		fmt.Println(len(commands), value)
-		acc += len(commands) * value
+		sequenceLength := enterCodeOnNumberPad(c, numberOfDpadRobots)
+		fmt.Println(sequenceLength, value)
+		acc += sequenceLength * value
 	}
 
 	fmt.Println(acc)
 
 }
 
-func pressingNumberKeypad(sequence []string) []string {
-	// fmt.Println("Number pad sequence is", sequence)
-	robotCommands := []string{}
-	s := "A"
-	for _, p := range sequence {
-		rm := moveOnNumberPad(s, p)
-		// fmt.Println(p, "-->", rm)
-		robotCommands = append(robotCommands, rm...)
-		s = p
-	}
-	return robotCommands
-
-}
-
-func moveOnNumberPad(start string, end string) []string {
-	sp := numPad[start]
-	ep := numPad[end]
-
-	moveToNumber := shortestRoute(sp, ep, numPad)
-
-	return moveToNumber
-}
-
-func enterCodeOnNumberPad(code []string, numberOfRobots int) []string {
-	humanCommands := []string{}
+func enterCodeOnNumberPad(code []string, numberOfRobots int) int {
 	previousNumberEntered := "A"
+	totalNumberOfCommands := 0
 
-	// fmt.Println("Code is", code)
 	for _, n := range code {
-		robot1Commands := shortestRouteOnNumberPad(numPad[previousNumberEntered], numPad[n])
-		// fmt.Println("Robot 1 commands, previous was", previousNumberEntered, "next is", n, "route is", robot1Commands)
-		humanCommands = append(humanCommands, robotsControllingRobots(robot1Commands, numberOfRobots)...)
+		numberOfCommands := shortestRouteOnNumberPad(numPad[previousNumberEntered], numPad[n], numberOfRobots)
 		previousNumberEntered = n
+		totalNumberOfCommands += numberOfCommands
 	}
 
-	return humanCommands
-}
+	return totalNumberOfCommands
 
-func robotsControllingRobots(commands []string, numberOfRobots int) []string{
-	sequence := enterSequenceOnDPad(commands)
-
-	if numberOfRobots == 1 {
-		return sequence
-	} else {
-		return robotsControllingRobots(sequence, numberOfRobots - 1)
-	}
-}
-
-func shortestRouteOnNumberPad(start, end position) []string {
-	pq := make(PriorityQueue, 0)
-	heap.Init(&pq)
-	heap.Push(&pq, &Item{position: start, route: []string{}, cost: 0})
-   
-	visited := make(map[position]bool)
-	shortestRoute := make(map[position][]string)
-   
-	for len(pq) > 0 {
-		item := heap.Pop(&pq).(*Item)
-	   	pos := item.position
-   
-		if visited[pos] { 
-			continue // Already processed this node with a shorter path
-		}
-	   
-		visited[pos] = true // Mark as visited AFTER processing neighbors
-		shortestRoute[pos] = item.route
-	   
-		if pos.row == end.row && pos.column == end.column {
-		   break // Found the shortest path to the destination
-		}
-	   
-		lastPress := "A"
-		if len(item.route) > 0 {
-		   lastPress = item.route[len(item.route)-1]
-		}
-	   
-		for d, pad := range directions {
-		   	np := position{row: pos.row + d.row, column: pos.column + d.column}
-		   	if isValidPosition(numPad, np) && !visited[np] { 
-			   	newItem := Item{
-					position: np,
-					route: append(item.route, pad),
-					cost: item.cost + dirPadCost(lastPress, pad),
-				}
-				heap.Push(&pq, &newItem) 
-			}
-		}
-	}
-
-	// fmt.Println("Shortest route from", start, "to", end, "was", shortestRoute[end])
-   
-	return append(shortestRoute[end], "A") 
 }
 
 // this method takes a start and end position on the number pad and determines the shortest route
 // between the buttons
-func shortestRouteOnNumberPad2(start position, end position) []string {
-
-	// fmt.Println("Finding shorted route from", start, "to", end)
+func shortestRouteOnNumberPad(start position, end position, numberOfRobots int) int {
 
 	pq := make(PriorityQueue, 0)
 	heap.Init(&pq)
-	heap.Push(&pq, &Item{position: start, route: []string{}, cost: 0})
+	heap.Push(&pq, &Item{
+		position: start, 
+		route: []string{}, 
+		cost: 0,
+	})
 
 	visited := make(map[position]bool)
 	shortestRoute := make(map[position][]string)
+	shortestSequence := make(map[position]int)
 
 	for len(pq) > 0 {
 		item := heap.Pop(&pq).(*Item)
 		pos := item.position
 
-		lastPress := "A"
-
-		if len(item.route) > 0 {
-			lastPress = item.route[len(item.route)-1]
-		}
-
 		if visited[pos] {
 			if len(item.route) < len(shortestRoute[pos]) {
 				shortestRoute[pos] = item.route
+				shortestSequence[pos] = item.cost
 			}
 
 			if pos.row == end.row && pos.column == end.column {
@@ -279,27 +197,40 @@ func shortestRouteOnNumberPad2(start position, end position) []string {
 		} else {
 			visited[pos] = true
 			shortestRoute[pos] = item.route
+			shortestSequence[pos] = item.cost
 		}
 
 		for d, pad := range directions {
 			np := position{row: pos.row + d.row, column: pos.column + d.column}
 			if isValidPosition(numPad, np) && !visited[np] {
-				newItem := Item{
+				newRoute := append(item.route, pad)
+				newRouteWithPressA := append(newRoute, "A")
+				routeCost := enterSequenceOnDPad(newRouteWithPressA, numberOfRobots)
+
+			   	newItem := Item{
 					position: np,
-					route:    append(item.route, pad),
-					cost:     item.cost + dirPadCost(lastPress, pad),
+					route: newRoute,
+					cost: routeCost,
 				}
 				heap.Push(&pq, &newItem)
 			}
 		}
 	}
+	fmt.Println("shortest route from", start, "to", end, "is", shortestRoute[end], "length", shortestSequence[end])
 
-
-	return append(shortestRoute[end], "A")
+	return shortestSequence[end]
 
 }
 
-func enterSequenceOnDPad(sequence []string) []string {
+func enterSequenceOnDPad(sequence []string, numberOfRobots int) int {
+
+	sq := strings.Join(sequence, "") + strconv.Itoa(numberOfRobots)
+
+	//Check if the pattern has already been computed
+	if result, exists := sequenceLengthCache[sq]; exists {
+		return result
+	}
+
 	subsequences := [][]string{}
 	subsequence := []string{}
 
@@ -310,19 +241,31 @@ func enterSequenceOnDPad(sequence []string) []string {
 			subsequence = []string{}
 		} 
 	}
+	subsequences = append(subsequences, subsequence)
 
-	commands := []string{}
+	sequenceLength := 0
 	for _,ss := range subsequences {
-		commands = append(commands, enterSubSequenceOnDPad(ss)...)
+		commandsToEnterSubsequence := enterSubSequenceOnDPad(ss)
+		if numberOfRobots == 1 {
+			sequenceLength += len(commandsToEnterSubsequence)
+		} else {
+			sequenceLength += enterSequenceOnDPad(commandsToEnterSubsequence, numberOfRobots - 1)
+		}
 	}
 
-	// fmt.Println(sequence, "is", commands)
+	sequenceLengthCache[sq] = sequenceLength
 
-	return commands
-
+	return sequenceLength
 }
 
 func enterSubSequenceOnDPad(sequence []string) []string {
+
+	sq := strings.Join(sequence, "")
+
+	// Check if the pattern has already been computed
+	if result, exists := subSequenceCache[sq]; exists {
+		return result
+	}
 
 	press := []string{}
 
@@ -334,13 +277,12 @@ func enterSubSequenceOnDPad(sequence []string) []string {
 		}
 	}
 
+	subSequenceCache[sq] = press
 	return press
 
 }
 
 func enterDirectionOnDPad(start position, end position) []string {
-
-	// fmt.Println("Finding shorted route from", start, "to", end)
 
 	pq := make(PriorityQueue, 0)
 	heap.Init(&pq)
@@ -348,7 +290,6 @@ func enterDirectionOnDPad(start position, end position) []string {
 		position: start,
 		route:    []string{},
 		cost:     0,
-		index:    0,
 	})
 
 	visited := make(map[position]bool)
@@ -394,169 +335,6 @@ func enterDirectionOnDPad(start position, end position) []string {
 	}
 
 	return append(shortestRoute[end], "A")
-}
-
-// Shortest route on the number pad
-func shortestRoute(start position, end position, positions map[string]position) []string {
-
-	// fmt.Println("Finding shorted route from", start, "to", end)
-
-	pq := make(PriorityQueue, 0)
-	heap.Init(&pq)
-	heap.Push(&pq, &Item{
-		position: start,
-		route:    []string{},
-		cost:     0,
-		index:    0,
-		driver:   []string{},
-	})
-
-	visited := make(map[position]bool)
-	shortestRoute := make(map[position][]string)
-	shortestDriverRoute := make(map[position][]string)
-
-	for len(pq) > 0 {
-		item := heap.Pop(&pq).(*Item)
-		pos := item.position
-
-		lastPress := "A"
-
-		if len(item.route) > 0 {
-			lastPress = item.route[len(item.route)-1]
-		}
-
-		if visited[pos] {
-			if len(item.driver) < len(shortestDriverRoute[pos]) {
-				shortestRoute[pos] = item.route
-				shortestDriverRoute[pos] = item.driver
-			}
-
-			if pos.row == end.row && pos.column == end.column {
-				continue
-			}
-
-		} else {
-			visited[pos] = true
-			shortestRoute[pos] = item.route
-			shortestDriverRoute[pos] = item.driver
-		}
-
-		for d, pad := range directions {
-			np := position{row: pos.row + d.row, column: pos.column + d.column}
-			if isValidPosition(positions, np) && !visited[np] {
-
-				// fmt.Println("\tRoute so far is", item.route, "current position is", pos, "next direction is", pad, "to position", np)
-
-				sdpm := shortestDirectionPadMove(dirPad[lastPress], dirPad[pad], numberOfDpadRobots)
-
-				newItem := Item{
-					position: np,
-					route:    append(item.route, pad),
-					cost:     item.cost + len(sdpm),
-					driver:   append(item.driver, sdpm...),
-				}
-
-				heap.Push(&pq, &newItem)
-			}
-		}
-	}
-
-	shortest := shortestRoute[end]
-	lastPress := shortest[len(shortest)-1]
-
-	// fmt.Println("Shortest route from", start, "to", end, "was", shortestRoute[end])
-
-	// fmt.Println("now finding shortest route from", dirPad[lastPress], "to A")
-
-	pressA := shortestDirectionPadMove(dirPad[lastPress], dirPad["A"], numberOfDpadRobots)
-	return append(shortestDriverRoute[end], pressA...)
-}
-
-// Shortest route on the dpad
-func shortestDirectionPadMove(start position, end position, level int) []string {
-
-	// fmt.Println(level)
-
-	startEndString := fmt.Sprintf("(%d, %d, %d, %d, %d)", start.row, start.column, end.row, end.column, level)
-
-	if _, ok := dPadCache[startEndString]; ok {
-		return dPadCache[startEndString]
-	}
-
-	if start == end {
-		return []string{"A"}
-	}
-
-	pq := make(PriorityQueue, 0)
-	heap.Init(&pq)
-	heap.Push(&pq, &Item{
-		position: start,
-		route:    []string{},
-		cost:     0,
-		index:    0,
-		driver:   []string{},
-	})
-
-	visited := make(map[position]bool)
-	routes := make(map[position][]string)
-
-	finished := false
-
-	for !finished {
-		item := heap.Pop(&pq).(*Item)
-		pos := item.position
-		visited[pos] = true
-		routes[pos] = item.route
-
-		if pos.row == end.row && pos.column == end.column {
-			finished = true
-
-			route := []string{}
-			if level > 1 {
-				robot3FinishPosition := item.route[len(item.route)-1]
-				pressA := shortestDirectionPadMove(dirPad[robot3FinishPosition], dirPad["A"], level-1)
-				route = append(item.driver, pressA...)
-
-			} else {
-				route = append(routes[end], "A")
-			}
-			dPadCache[startEndString] = route
-			return route
-
-		}
-
-		for d, pad := range directions {
-			np := position{row: pos.row + d.row, column: pos.column + d.column}
-			if isValidPosition(dirPad, np) && !visited[np] {
-
-				robot3Position := dirPad["A"]
-				if len(item.route) > 0 {
-					robot3Position = dirPad[item.route[len(item.route)-1]]
-				}
-
-				robotMoves := []string{}
-
-				if level > 1 {
-					robotMoves = shortestDirectionPadMove(robot3Position, dirPad[pad], level-1)
-				} else {
-					robotMoves = []string{pad}
-				}
-
-				newRoute := append([]string(nil), append(item.route, pad)...)
-				newCost := item.cost + len(robotMoves)
-
-				heap.Push(&pq, &Item{
-					position: np,
-					route:    newRoute,
-					cost:     newCost,
-					driver:   append(item.driver, robotMoves...),
-				})
-			}
-		}
-	}
-
-	return []string{}
-
 }
 
 func isValidPosition(m map[string]position, target position) bool {
